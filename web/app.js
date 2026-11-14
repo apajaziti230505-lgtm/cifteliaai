@@ -3,6 +3,8 @@ const $=id=>document.getElementById(id);
 const player=$('player');
 let project=null, events=[], selectedId=null, zoom=60, roi=null, choosingROI=false, roiDrag=null;
 let undoStack=[],redoStack=[],saveTimer=null,toastTimer=null,groupEnd=null,lastMediaId=null;
+let fretRoi=null,fretMarks={},selectionMode=null,calibIndex=-1,analysisController=null;
+let liveHandDetector=null,liveTrackRun=false,liveTrackToken=0,liveHands=[],liveMarks=null,liveFretRoi=null,liveRoi=null;
 const strings={poshte:'poshtë',lart:'lart',ghost:'lëvizje e heshtur'};
 const allowedStrokes=['down','up','unknown','ghost_up','ghost_down'];
 
@@ -71,8 +73,8 @@ function validBaseFrequencies(){const old=project?.settings?.frequencies||{posht
  const previousLower=Number(old.poshte[0])||293,previousUpper=Number(old.lart[0])||220;
  return {poshte:old.poshte.map(x=>Math.round(x*lower/previousLower*100)/100),lart:old.lart.map(x=>Math.round(x*upper/previousUpper*100)/100)};
 }
-function settingsFromForm(){return {roi,axis:$('axis').value,invert:$('invert').checked,detect_ghosts:$('ghosts').checked,max_seconds:Number($('maxSeconds').value),frequencies:validBaseFrequencies()};}
-function loadSettings(settings){const s=settings||{};roi=s.roi||null;$('axis').value=s.axis||'vertical';$('invert').checked=!!s.invert;$('ghosts').checked=s.detect_ghosts!==false;$('maxSeconds').value=String(s.max_seconds||180);$('freqUpper').value=Number(s.frequencies?.lart?.[0]||220);$('freqLower').value=Number(s.frequencies?.poshte?.[0]||293);setROIText();drawROI();}
+function settingsFromForm(){return {roi,fretRoi,fretMarks,useHandAI:$('useHandAI').checked,axis:$('axis').value,invert:$('invert').checked,detect_ghosts:$('ghosts').checked,max_seconds:Number($('maxSeconds').value),frequencies:validBaseFrequencies()};}
+function loadSettings(settings){const s=settings||{};roi=s.roi||null;fretRoi=s.fretRoi||null;fretMarks=s.fretMarks||{};$('neckOnRight').checked=!!s.neckOnRight;$('useHandAI').checked=s.useHandAI!==false;$('useHandAI').checked=s.useHandAI!==false;$('axis').value=s.axis||'vertical';$('invert').checked=!!s.invert;$('ghosts').checked=s.detect_ghosts!==false;$('maxSeconds').value=String(s.max_seconds||120);$('freqUpper').value=Number(s.frequencies?.lart?.[0]||220);$('freqLower').value=Number(s.frequencies?.poshte?.[0]||293);setROIText();drawROI();}
 function applyProject(p){
   project=p;events=Array.isArray(p?.events)?structuredClone(p.events):[];selectedId=null;undoStack=[];redoStack=[];
   const m=p?.media;
@@ -120,10 +122,12 @@ function drawWave(){const canvas=$('waveCanvas');const wave=project?.waveform||[
  for(let x=0;x<w;x+=2){const sec=x/Math.max(1,w)*currentDuration();const i=Math.min(wave.length-1,Math.round(sec/step));if(i<0||sec>analyzed)continue;const h=Math.min(28,28*wave[i]/max);ctx.fillRect(x,33-h/2,1,Math.max(1,h));}
 }
 function updatePlayback(){let t=currentTime();$('currentTime').textContent=timeText(t);$('durationTime').textContent=timeText(Number(player.duration)||Number(project?.media?.duration)||0);$('positionLabel').textContent=num(t)+' s';$('seek').max=Math.max(1,Number(player.duration)||Number(project?.media?.duration)||1);$('seek').value=Math.min(Number($('seek').max),t);$('playhead').style.left=(t*zoom)+'px';$('playBtn').textContent=player.paused?'▶':'Ⅱ';
+ const active=events.filter(e=>e.time<=t+.04 && (e.time+Math.max(.15,e.duration))>=t-.05 && e.string!=='ghost').sort((a,b)=>b.time-a.time)[0];
+ const live=$('liveNote');if(live)live.textContent=active?`Nota aktive: ${active.string==='lart'?'LART':'POSHTË'} · Perdja ${active.fret} · ${arrow(active)} ${active.stroke==='unknown'?'(drejtim i panjohur)':''}`:'Nota aktive: — · Goditja: ?';
  if(groupEnd!==null && t>=groupEnd-0.02){player.pause();groupEnd=null;}
  const sc=$('timelineScroll');if(!player.paused&&t*zoom>sc.scrollLeft+sc.clientWidth-100)sc.scrollLeft=Math.max(0,t*zoom-100);
 }
-function selectEvent(id,rerender=true){selectedId=id;const e=noteById(id);$('emptyEditor').style.display=e?'none':'block';$('noteForm').classList.toggle('hidden',!e);$('deleteBtn').disabled=!e;if(e){$('noteTime').value=num(e.time);$('noteDuration').value=num(e.duration);$('noteString').value=e.string;$('noteFret').value=e.fret===null?'0':String(e.fret);$('noteStroke').value=allowedStrokes.includes(e.stroke)?e.stroke:'unknown';$('noteGroup').value=e.group||1;$('noteInfo').textContent=`${e.source==='manual'?'Manuale':'Automatike'} · siguri e vlerësuar ${Math.round((e.confidence||0)*100)}% ${e.review?'· rishiko':' '}`;$('noteFret').disabled=e.string==='ghost';}if(rerender)renderTimeline();else {document.querySelectorAll('.event').forEach(el=>el.classList.toggle('selected',el.dataset.id===id));}}
+function selectEvent(id,rerender=true){selectedId=id;const e=noteById(id);$('emptyEditor').style.display=e?'none':'block';$('noteForm').classList.toggle('hidden',!e);$('deleteBtn').disabled=!e;if(e){$('noteTime').value=num(e.time);$('noteDuration').value=num(e.duration);$('noteString').value=e.string;$('noteFret').value=e.fret===null?'0':String(e.fret);$('noteStroke').value=allowedStrokes.includes(e.stroke)?e.stroke:'unknown';$('noteGroup').value=e.group||1;$('noteInfo').textContent=`${e.source==='manual'?'Manuale':'Automatike'} · siguri e vlerësuar ${Math.round((e.confidence||0)*100)}% ${e.video_fret_hint!=null?'· video: afërsisht perdja '+e.video_fret_hint:''} ${e.ambiguous?'· audio: teli i paqartë':''} ${e.review?'· rishiko':' '}`;$('noteFret').disabled=e.string==='ghost';}if(rerender)renderTimeline();else {document.querySelectorAll('.event').forEach(el=>el.classList.toggle('selected',el.dataset.id===id));}}
 function makeId(){return (typeof crypto.randomUUID==='function'?crypto.randomUUID().replaceAll('-',''):(Date.now().toString(16)+Math.random().toString(16).slice(2))).slice(0,12)}
 function newEvent(string,time){return {id:makeId(),time:Math.max(0,Math.round(time*1000)/1000),duration:.22,string,fret:string==='ghost'?null:0,stroke:string==='ghost'?'ghost_up':'unknown',confidence:1,source:'manual',review:false,group:1};}
 function addEvent(string='poshte',time=currentTime()){if(!project)return toast('Ngarko një video ose audio fillimisht.',true);snapshot();const e=newEvent(string,time);const groups=events.filter(x=>x.time<=time).sort((a,b)=>b.time-a.time);e.group=groups.length?groups[0].group:1;events.push(e);events.sort((a,b)=>a.time-b.time);selectedId=e.id;refresh();selectEvent(e.id);scheduleSave();toast('Nota u shtua. Vendos perden dhe goditjen në panelin poshtë.');}
@@ -153,17 +157,152 @@ function parseImported(raw){const list=Array.isArray(raw)?raw:(raw.events||raw.n
 function newGroup(){if(!project)return;const time=currentTime(),g=Math.max(0,...events.map(e=>Number(e.group)||1))+1;snapshot();for(const e of events.filter(e=>e.time>=time))e.group=g;refreshGroups();$('groupSelect').value=String(g);scheduleSave();toast(`Grupi ${g} fillon në ${num(time)} s. Mund ta ndryshosh për çdo notë.`);}
 function playGroup(){if(!player.src)return;const g=$('groupSelect').value;if(g==='all'){groupEnd=null;player.currentTime=0;player.play().catch(()=>{});return;}const notes=events.filter(e=>String(e.group)===g).sort((a,b)=>a.time-b.time);if(!notes.length)return;player.currentTime=Math.max(0,notes[0].time-.08);groupEnd=Math.max(...notes.map(e=>e.time+e.duration))+.05;player.play().catch(()=>{});}
 function clickUpload(){if($('fileInput'))$('fileInput').click();}
-async function uploadFile(file){if(!file)return;if(file.size>500*1024*1024)return toast('Skedari është mbi 500 MB.',true);busy(true,'Duke importuar skedarin…','Skedari ruhet vetëm në kompjuterin tënd.');try{
+async function uploadFile(file){if(!file)return;stopAutoHandTracking();if(file.size>500*1024*1024)return toast('Skedari është mbi 500 MB.',true);busy(true,'Duke importuar skedarin…','Skedari ruhet vetëm në kompjuterin tënd.');try{
   await saveNow();const result=await api('/api/upload',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Filename':encodeURIComponent(file.name)},body:file});applyProject(result.project);toast('Videoja/audioja është gati për luajtje! Shto nota ose importo JSON.');
  }catch(e){toast(e.message,true)}finally{busy(false);$('fileInput').value='';}}
-async function analyzeMedia(){if(!project)return toast('Ngarko video ose audio fillimisht.',true);if(events.length&&!confirm('Analiza e re do të zëvendësojë notat aktuale. Eksporto JSON për kopje rezervë nëse i ke korrigjuar. Vazhdo?'))return;
- busy(true,'Duke analizuar çiftelinë…','Zbulimi i notave dhe lëvizjeve bëhet lokalisht. Videoja nuk dërgohet askund.');try{const r=await jsonPost('/api/analyze',{settings:settingsFromForm()});applyProject(r.project);const s=r.stats;toast(`U gjetën ${s.events} ngjarje (${s.audio_onsets} fillime goditjesh). Drejtimi i vlerësuar për ${s.recognized_strokes}; lëvizje të heshtura për kontroll: ${s.silent_movements}.`);}catch(e){toast(e.message,true)}finally{busy(false)}}
+async function analyzeMedia(){
+ if(!project?.media)return toast('Ngarko një video ose audio fillimisht.',true);
+ if(analysisController)return toast('Një analizë është ende duke u kryer.',true);
+ if(events.length&&!confirm('Analiza e re zëvendëson notat aktuale. Eksporto JSON për kopje rezervë nëse i ke korrigjuar. Vazhdo?'))return;
+ if(!window.CifteliaAnalysis)return toast('Moduli i analizës nuk është ngarkuar. Rifresko faqen.',true);
+ const previousTime=currentTime();const controller=new AbortController();analysisController=controller;
+ $('analyzeBtn').disabled=true;$('cancelAnalyzeBtn').disabled=false;$('uploadBtn').disabled=true;
+ $('analysisProgress').textContent='Analiza ka filluar. Mos e ndërro faqen: media luhet në 1×, në kohë reale.';
+ try{
+   const settings=settingsFromForm();
+   const result=await window.CifteliaAnalysis.analyze({player,settings,frequencies:settings.frequencies,signal:controller.signal,
+     onProgress:s=>{$('analysisProgress').textContent=s.status||`Duke analizuar ${num(s.seconds,1)} / ${num(s.total,1)} sekonda · ${s.detected} goditje audio · ${s.motions} lëvizje të dorës`;} });
+   if(result.stats.onsets===0){$('analysisProgress').textContent='Nuk u zbuluan goditje të sigurta. Provo regjistrim më të pastër.';return toast('Nuk u zbuluan goditje. Mos u ruajt asnjë notë.',true)}
+   snapshot();events=result.events;selectedId=null;project.events=events;project.waveform=result.waveform;project.analyzed_seconds=result.analyzed_seconds;project.analysis=result.stats;
+   refresh();scheduleSave();
+   $('analysisProgress').textContent=`Analiza përfundoi: ${result.stats.onsets} goditje, ${result.stats.events} ngjarje, ${result.stats.strokes} shigjeta ↓/↑, ${result.stats.ghosts} lëvizje të heshtura. Korrigjo notat me pika.`;
+   toast('Analiza Web u përfundua. Shiko notat me pika për kontroll.');
+ }catch(e){$('analysisProgress').textContent='Analiza nuk u përfundua: '+e.message;toast(e.message,true)}
+ finally{
+   player.pause();try{player.currentTime=previousTime}catch{}$('timelineScroll').scrollLeft=Math.max(0,previousTime*zoom-80);
+   analysisController=null;$('analyzeBtn').disabled=false;$('cancelAnalyzeBtn').disabled=true;$('uploadBtn').disabled=false;updatePlayback();
+ }
+}
 async function convertMedia(){if(!project)return;busy(true,'Duke konvertuar në MP4…','Kjo kryhet vetëm në kompjuter; videoja origjinale ruhet.');try{const r=await jsonPost('/api/convert',{});const t=currentTime();applyProject(r.project);player.addEventListener('loadedmetadata',()=>{player.currentTime=t;},{once:true});toast('U krijua pamja MP4 për shfletuesin.');}catch(e){toast(e.message,true)}finally{busy(false)}}
-function selectRoiMode(){if(!project?.media?.has_video)return toast('Për këtë funksion duhet video, jo vetëm audio.',true);choosingROI=!choosingROI;$('videoBox').classList.toggle('selecting',choosingROI);$('roiBtn').textContent=choosingROI?'✓ Tërhiq një drejtkëndësh mbi dorën':'▣ Përzgjidh zonën e plektrumit';if(choosingROI){player.pause();toast('Me maus tërhiq një drejtkëndësh që përfshin plektrumin dhe dorën e djathtë.')}}
-function setROIText(){const r=roi;$('roiStatus').textContent=r?`Zonë e zgjedhur: x=${Math.round(r.x*100)}%, y=${Math.round(r.y*100)}%, gjerësi=${Math.round(r.w*100)}%, lartësi=${Math.round(r.h*100)}%.`:'Pa zonë: do të analizohen vetëm notat dhe goditjet nga audioja.';}
-function drawROI(){const canvas=$('roiCanvas');if(!canvas)return;const rect=canvas.getBoundingClientRect();canvas.width=Math.round(rect.width*devicePixelRatio);canvas.height=Math.round(rect.height*devicePixelRatio);const cx=canvas.getContext('2d');cx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);cx.clearRect(0,0,rect.width,rect.height);const r=roiDrag||roi;if(!r)return;const x=r.x*rect.width,y=r.y*rect.height,w=r.w*rect.width,h=r.h*rect.height;cx.strokeStyle='#5affd1';cx.lineWidth=2;cx.fillStyle='#2dd4bf32';cx.fillRect(x,y,w,h);cx.strokeRect(x,y,w,h);cx.font='bold 12px Segoe UI';cx.fillStyle='#e4fffb';cx.fillText('PLEKTRUM / DORA',x+5,Math.max(16,y-8));}
+// Two hand boxes are detected automatically and redrawn as the instrument/player moves.
+async function startAutoHandTracking(){
+ if(!project?.media?.has_video)return toast('Ngarko MP4 që tregon duart.',true);
+ if(analysisController)return toast('Ndalo analizën para gjurmimit të drejtpërdrejtë.',true);
+ if(!window.CifteliaAnalysis)return toast('Moduli i analizës mungon.',true);
+ const token=++liveTrackToken;
+ $('autoTrackBtn').disabled=true;
+ $('trackStatus').textContent='Po ngarkohet MediaPipe për njohjen e dy duarve…';
+ try{liveHandDetector=await window.CifteliaAnalysis.loadHands();}
+ catch(e){$('trackStatus').textContent='Nuk u ngarkua modeli i duarve. Kontrollo internetin. '+e.message;
+  $('autoTrackBtn').disabled=false;return;}
+ if(token!==liveTrackToken)return;
+ liveTrackRun=true;$('stopTrackBtn').disabled=false;
+ let lastTime=-1,lastImage=null,lastClock=0;
+ let dynamicNeck=fretRoi, dynamicMarks=structuredClone(fretMarks),dynamicPick=roi;
+ const grayCanvas=document.createElement('canvas');grayCanvas.width=160;grayCanvas.height=90;
+ const loop=()=>{
+   if(!liveTrackRun||token!==liveTrackToken)return;
+   if(analysisController){setTimeout(loop,120);return;}
+   const clock=performance.now();
+   if(clock-lastClock<105){requestAnimationFrame(loop);return;}
+   lastClock=clock;
+   if(player.readyState>=2&&player.videoWidth){
+     try{
+       const frame=window.CifteliaAnalysis.grayImage(player,grayCanvas);
+       if(frame&&lastImage&&dynamicNeck){
+         const delta=window.CifteliaAnalysis.shiftRegion(lastImage,frame,dynamicNeck);
+         if(delta){dynamicNeck=window.CifteliaAnalysis.translateRect(dynamicNeck,delta);
+           dynamicMarks=window.CifteliaAnalysis.translateMarks(dynamicMarks,delta);}
+       }
+       const result=window.CifteliaAnalysis.detectHands(player,liveHandDetector,{...settingsFromForm(),fretRoi:dynamicNeck});
+       liveHands=result.hands.map(h=>({rect:h.rect,role:h.role||'hand'}));
+       if(result.fretting&&!dynamicNeck){const h=result.fretting.rect;
+         dynamicNeck={x:Math.max(0,h.x-h.w*.55),y:Math.max(0,h.y-h.h*.35),
+           w:Math.min(.5,h.w*2),h:Math.min(.5,h.h*1.7)};}
+       if(result.picking)dynamicPick=result.picking.rect;
+       liveFretRoi=dynamicNeck;liveRoi=dynamicPick;liveMarks=dynamicMarks;
+       $('trackStatus').textContent=`U gjetën ${result.hands.length} duar. Katrorët lëvizin me duart; shenjat e perdeve ndiqen afërsisht me teksturën e qafës. ${result.hands.length<2?'Për dy katrorë duhen të duken të dy duart.':''}`;
+       drawROI();lastImage=frame;
+     }catch(e){$('trackStatus').textContent='Gabim gjatë gjurmimit: '+e.message;}
+   }
+   requestAnimationFrame(loop);
+ };
+ requestAnimationFrame(loop);
+}
+function stopAutoHandTracking(){
+ liveTrackRun=false;liveTrackToken++;liveHands=[];liveFretRoi=null;liveRoi=null;liveMarks=null;
+ $('autoTrackBtn').disabled=false;$('stopTrackBtn').disabled=true;
+ $('trackStatus').textContent='Gjurmimi u ndal. Katrorët manualë ruhen në projekt.';drawROI();
+}
+function selectRoiMode(type='roi'){stopAutoHandTracking();
+ if(!project?.media?.has_video)return toast('Duhet video MP4 për kalibrimin e dorës.',true);
+ if(analysisController)return toast('Ndalo analizën para kalibrimit.',true);
+ player.pause();selectionMode=type;calibIndex=-1;choosingROI=true;
+ $('videoBox').classList.remove('calibrating');$('videoBox').classList.add('selecting');
+ toast(type==='roi'?'Tërhiq drejtkëndësh të vogël vetëm mbi plektrumin/dorën e djathtë.':'Tërhiq një drejtkëndësh mbi gishtat dhe perdet e çiftelisë.');
+}
+function selectFretCalibration(){stopAutoHandTracking();
+ if(!project?.media?.has_video)return toast('Duhet video për të shënuar 4, 7 dhe 8.',true);
+ if(analysisController)return toast('Ndalo analizën para kalibrimit.',true);
+ player.pause();selectionMode='marks';calibIndex=0;choosingROI=false;fretMarks={};
+ $('videoBox').classList.remove('selecting');$('videoBox').classList.add('calibrating');setROIText();drawROI();
+ toast('Kliko shenjën fizike të perdes 4, pastaj 7, pastaj 8, në këtë rend.');
+}
+function setROIText(){
+ const fmt=r=>r?`x=${Math.round(r.x*100)}%, y=${Math.round(r.y*100)}%, gjerësi=${Math.round(r.w*100)}%`:'nuk është zgjedhur';
+ $('roiStatus').textContent='Plektrumi: '+fmt(roi)+' · Gishtat: '+fmt(fretRoi);
+ const have=Object.keys(fretMarks);
+ $('fretStatus').textContent=calibIndex>=0?`Kliko perden ${[4,7,8][calibIndex]} mbi video.`:`Shenja kalibruese: ${have.length?have.join(', '):'asnjë'}. Pikat janë orientim, jo njohje e sigurt e gishtit.`;
+}
+function drawROI(){
+ const canvas=$('roiCanvas');if(!canvas)return;
+ const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
+ const dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);
+ const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,rect.width,rect.height);
+ function drawRect(r,color,text){if(!r)return;const x=r.x*rect.width,y=r.y*rect.height,w=r.w*rect.width,h=r.h*rect.height;ctx.strokeStyle=color;ctx.lineWidth=2;ctx.fillStyle=color+'22';ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.font='bold 12px sans-serif';ctx.fillStyle=color;ctx.fillText(text,x+5,Math.max(14,y-6));}
+ drawRect(liveRoi||roi,'#4ff1d1','PLEKTRUM');drawRect(liveFretRoi||fretRoi,'#f1b77d','GISHTAT');if(roiDrag)drawRect(roiDrag,'#fcf3b0','ZONA E RE');
+ for(const [f,p] of Object.entries(liveMarks||fretMarks)){const x=p.x*rect.width,y=p.y*rect.height;
+   ctx.fillStyle='#ffe28d';ctx.strokeStyle='#152336';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,9,0,Math.PI*2);ctx.fill();ctx.stroke();
+   ctx.font='bold 11px sans-serif';ctx.fillStyle='#102332';ctx.textAlign='center';ctx.fillText(f,x,y+4);ctx.textAlign='start';}
+ // Distinct LIVE boxes follow the fingers and picking hand in every analysed frame.
+ for(const h of liveHands){
+   const label=h.role==='fret'?'GISHTAT / PERDET':h.role==='pick'?'DORA / PLEKTRUM':'DORA';
+   drawRect(h.rect,h.role==='fret'?'#ffc477':'#5bf8d3',label);
+ }
+ if(window.CifteliaAnalysis?.projectFretMarkers){
+   const frets=window.CifteliaAnalysis.projectFretMarkers(liveMarks||fretMarks);
+   for(const p of frets){
+     const x=p.x*rect.width,y=p.y*rect.height;
+     ctx.beginPath();ctx.arc(x,y,p.measured?6:3,0,Math.PI*2);
+     ctx.fillStyle=p.measured?'#ffcf6d':'#fbdb987d';ctx.fill();
+     ctx.font='bold 9px sans-serif';ctx.fillStyle='#fff3c6';ctx.fillText(String(p.f),x+4,y-4);
+   }
+ }
+}
 function pointerNorm(ev){const rect=$('roiCanvas').getBoundingClientRect();return {x:Math.max(0,Math.min(1,(ev.clientX-rect.left)/rect.width)),y:Math.max(0,Math.min(1,(ev.clientY-rect.top)/rect.height))};}
-function initROI(){const canvas=$('roiCanvas');let start=null;canvas.addEventListener('pointerdown',e=>{if(!choosingROI)return;start=pointerNorm(e);canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!start||!choosingROI)return;const p=pointerNorm(e);roiDrag={x:Math.min(start.x,p.x),y:Math.min(start.y,p.y),w:Math.abs(start.x-p.x),h:Math.abs(start.y-p.y)};drawROI();});canvas.addEventListener('pointerup',()=>{if(!start)return;if(roiDrag&&roiDrag.w>.03&&roiDrag.h>.03){roi=roiDrag;setROIText();scheduleSave();toast('Zona e dorës u caktua. Mund ta analizosh videon.')}else toast('Shëno një zonë pak më të madhe.',true);roiDrag=null;start=null;choosingROI=false;$('videoBox').classList.remove('selecting');$('roiBtn').textContent='▣ Përzgjidh zonën e plektrumit';drawROI();});}
+function initROI(){const canvas=$('roiCanvas');let start=null;
+ canvas.addEventListener('pointerdown',e=>{
+   if(selectionMode==='marks')return;
+   if(!choosingROI)return;start=pointerNorm(e);canvas.setPointerCapture(e.pointerId);
+ });
+ canvas.addEventListener('pointermove',e=>{if(!start||!choosingROI)return;const p=pointerNorm(e);
+   roiDrag={x:Math.min(start.x,p.x),y:Math.min(start.y,p.y),w:Math.abs(start.x-p.x),h:Math.abs(start.y-p.y)};drawROI();
+ });
+ canvas.addEventListener('pointerup',e=>{
+   if(selectionMode==='marks'){
+     const mark=[4,7,8][calibIndex];if(mark===undefined)return;
+     fretMarks[String(mark)]=pointerNorm(e);calibIndex++;
+     if(calibIndex>=3){calibIndex=-1;selectionMode=null;$('videoBox').classList.remove('calibrating');toast('U ruajtën shenjat 4, 7 dhe 8. Janë vetëm kalibrim orientues.');}
+     setROIText();drawROI();scheduleSave();return;
+   }
+   if(!start)return;
+   if(roiDrag&&roiDrag.w>.03&&roiDrag.h>.03){
+     if(selectionMode==='fretRoi')fretRoi=roiDrag;else roi=roiDrag;
+     scheduleSave();toast('Zona u caktua. Mund ta analizosh videon.');
+   }else toast('Shëno një zonë më të madhe.',true);
+   roiDrag=null;start=null;choosingROI=false;selectionMode=null;$('videoBox').classList.remove('selecting');setROIText();drawROI();
+ });
+}
 function register(){
  for(let i=0;i<=13;i++){const o=document.createElement('option');o.value=String(i);o.textContent=i===0?'0 (teli i hapur)':String(i);$('noteFret').append(o);}
  $('uploadBtn').onclick=clickUpload;$('fileInput').onchange=e=>uploadFile(e.target.files[0]);
@@ -173,16 +312,28 @@ function register(){
  player.addEventListener('loadedmetadata',()=>{if(player.videoWidth&&player.videoHeight){$('videoBox').style.aspectRatio=player.videoWidth+'/'+player.videoHeight;}updatePlayback();drawROI();});
  $('seek').oninput=e=>{if(player.src)player.currentTime=Number(e.target.value);updatePlayback()};
  document.querySelectorAll('.speed-btn').forEach(b=>b.onclick=()=>{const rate=Number(b.dataset.speed);player.playbackRate=rate;player.preservesPitch=true;document.querySelectorAll('.speed-btn').forEach(x=>x.classList.toggle('active',x===b));});
- // Versioni Web nuk parashikon analizë ROI të plektrumit.
- // Analiza Python është e disponueshme vetëm në versionin lokal.
+ $('autoTrackBtn').onclick=startAutoHandTracking;$('stopTrackBtn').onclick=stopAutoHandTracking;
+ $('neckOnRight').onchange=scheduleSave;$('useHandAI').onchange=scheduleSave;
+ $('roiBtn').onclick=()=>selectRoiMode('roi');$('fretRoiBtn').onclick=()=>selectRoiMode('fretRoi');
+ $('fretMarkBtn').onclick=selectFretCalibration;$('clearFretMarksBtn').onclick=()=>{fretMarks={};calibIndex=-1;selectionMode=null;$('videoBox').classList.remove('calibrating');setROIText();drawROI();scheduleSave()};
+ $('analyzeBtn').onclick=analyzeMedia;$('cancelAnalyzeBtn').onclick=()=>analysisController?.abort();initROI();new ResizeObserver(drawROI).observe($('videoBox'));
  $('addBtn').onclick=()=>addEvent('poshte');$('addGhostBtn').onclick=()=>addEvent('ghost');$('applyBtn').onclick=applyEdits;$('deleteBtn').onclick=deleteSelected;
  $('noteString').onchange=()=>{$('noteFret').disabled=$('noteString').value==='ghost';if($('noteString').value==='ghost')$('noteStroke').value='ghost_up';else if($('noteStroke').value.startsWith('ghost'))$('noteStroke').value='unknown';};
  $('undoBtn').onclick=undo;$('redoBtn').onclick=redo;
  $('jsonExportBtn').onclick=exportJSON;$('jsonImportBtn').onclick=()=>$('jsonInput').click();
  $('jsonInput').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(!project)return toast('Ngarko një video/audio para importit JSON.',true);try{const data=JSON.parse(await f.text());const imported=parseImported(data);if(events.length&&!confirm('Të zëvendësohen notat aktuale me '+imported.length+' nota nga JSON?'))return;snapshot();events=imported;selectedId=null;refresh();scheduleSave();toast('U importuan '+events.length+' ngjarje.');}catch(err){toast(err.message,true)}};
  $('saveBtn').onclick=saveNow;$('groupPlay').onclick=playGroup;$('newGroup').onclick=newGroup;
- $('zoomIn').onclick=()=>{zoom=Math.min(160,zoom+15);$('zoomValue').textContent=zoom+' px/s';renderTimeline()};
- $('zoomOut').onclick=()=>{zoom=Math.max(25,zoom-15);$('zoomValue').textContent=zoom+' px/s';renderTimeline()};
+  function zoomAt(z){const sc=$('timelineScroll'),center=sc.scrollLeft+sc.clientWidth/2;const t=center/zoom;zoom=Math.max(15,Math.min(260,z));$('zoomValue').textContent=zoom+' px/s';$('zoomSlider').value=zoom;renderTimeline();sc.scrollLeft=Math.max(0,t*zoom-sc.clientWidth/2);}
+ $('zoomIn').onclick=()=>zoomAt(zoom+15);
+ $('zoomOut').onclick=()=>zoomAt(zoom-15);
+ $('zoomSlider').oninput=e=>zoomAt(Number(e.target.value));
+ $('panLeft').onclick=()=>$('timelineScroll').scrollBy({left:-Math.max(200,$('timelineScroll').clientWidth*.65),behavior:'smooth'});
+ $('panRight').onclick=()=>$('timelineScroll').scrollBy({left:Math.max(200,$('timelineScroll').clientWidth*.65),behavior:'smooth'});
+ let pan=null;const sc=$('timelineScroll');
+ sc.addEventListener('pointerdown',e=>{if(!e.shiftKey||e.target.closest('.event'))return;pan={x:e.clientX,scroll:sc.scrollLeft};sc.setPointerCapture(e.pointerId);sc.classList.add('dragging-pan')});
+ sc.addEventListener('pointermove',e=>{if(pan)sc.scrollLeft=pan.scroll+pan.x-e.clientX});
+ const endPan=()=>{pan=null;sc.classList.remove('dragging-pan')};sc.addEventListener('pointerup',endPan);sc.addEventListener('pointercancel',endPan);
+
  document.addEventListener('keydown',e=>{const target=e.target;const isInput=target.matches('input,select,textarea')||target.isContentEditable;if(isInput)return;if(e.code==='Space'){e.preventDefault();if(player.src){player.paused?player.play():player.pause();}}if((e.key==='Delete'||e.key==='Backspace')&&selectedId){e.preventDefault();deleteSelected()}if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}});
 }
 register();

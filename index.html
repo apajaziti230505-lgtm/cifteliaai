@@ -6,14 +6,15 @@
   <title>Çiftelia Studio AI | Luaj & redakto në Web</title>
   <link rel="stylesheet" href="./static/style.css" />
   <link rel="stylesheet" href="./web/web.css" />
+  <script src="./web/analysis.js" defer></script>
   <script src="./web/app.js" defer></script>
 </head>
 <body>
 <header class="topbar">
   <div class="brand"><div class="brand-mark">♫</div><div><strong>ÇIFTELIA <span>STUDIO AI</span></strong><small>MP3 / MP4 + tablaturë · luhet në web</small></div></div>
-  <div class="top-right"><span class="status-dot"></span><span>WEB · PA NGARKIM NË SERVER</span><span class="version">WEB 1.1</span></div>
+  <div class="top-right"><span class="status-dot"></span><span>WEB · PA NGARKIM NË SERVER</span><span class="version">WEB 2.1</span></div>
 </header>
-<div class="web-topnote">Luajtje nga shfletuesi, pa instalim. Pas rifreskimit të faqes, zgjidh përsëri skedarin MP3/MP4 për ta lidhur me tablaturën e ruajtur.</div>
+<div class="web-topnote">Luajtje dhe analizë nga shfletuesi, pa server. Për analizën e videos, regjistrimi luhet nga fillimi në shpejtësi 1×; rezultatet janë vlerësime që mund t’i korrigjosh. Pas rifreskimit zgjidh përsëri skedarin.</div>
 <main class="workspace">
   <section class="panel media-panel">
     <div class="panel-heading"><div><span class="eyebrow">HAPI 01</span><h1>Video &amp; audio</h1></div><span class="mini-label">MP4 · MOV · MP3 · WAV</span></div>
@@ -31,25 +32,41 @@
       <span id="durationTime" class="time-label">00:00.00</span>
     </div>
     <div class="speed-row"><span>SHPEJTËSIA</span><div class="speed-buttons"><button class="speed-btn active" data-speed="1">1.00×</button><button class="speed-btn" data-speed="0.5">0.50×</button><button class="speed-btn" data-speed="0.25">0.25×</button></div></div>
+    <div id="liveNote" class="live-note" aria-live="polite">Nota aktive: — · Goditja: ?</div>
     <div class="section-separator"></div>
-    <div class="tip-card web-advice"><span class="tip-icon">i</span><p><b>Versioni Web:</b> Luaj MP3/MP4, ndrysho shpejtësinë, shto/fshi/zhvendos nota dhe importo/eksporto JSON. Analiza automatike e videos/audio me Python mbetet në programin lokal Windows. Skedarët audio/video nuk dërgohen në GitHub.</p></div>
-    <div hidden aria-hidden="true">
-      <button id="roiBtn"></button><span id="roiStatus"></span>
-      <select id="axis"><option value="vertical">Vertikal</option></select>
-      <select id="maxSeconds"><option value="180">180</option></select>
-      <input id="invert" type="checkbox"/><input id="ghosts" type="checkbox" checked/>
-      <button id="analyzeBtn"></button><button id="convertBtn"></button>
+    <div class="section-label">Analiza e audios dhe videos <span class="pill muted">Vlerësime · kontroll manual</span></div>
+    <p class="helper">Për video, kliko “Gjej dhe ndiq duart vetë”. Nëse nuk i gjen, mund të shënosh zonat manualisht. Analiza lexon tingullin për notat dhe lëvizjen e dorës me plektrum për shigjetën ↓/↑. Në video që nuk e tregojnë dorën qartë, drejtimi mund të mbetet ?.</p>
+    <div class="analysis-actions"><button class="btn primary" id="autoTrackBtn">◎ Gjej dhe ndiq duart vetë</button>
+      <button class="btn subtle" id="stopTrackBtn" disabled>Ndalo katrorët</button></div>
+    <label class="checkline"><input id="neckOnRight" type="checkbox"/> Qafa e çiftelisë është në të djathtë të pamjes</label>
+    <p id="trackStatus" class="helper">Ndjekja automatike kërkon MediaPipe dhe internet vetëm për shkarkimin e modelit. Videoja mbetet në shfletues.</p>
+    <div class="analysis-actions"><button class="btn outline" id="roiBtn">▣ Zona e plektrumit</button><button class="btn outline" id="fretRoiBtn">▣ Zona e gishtave</button></div>
+    <div class="analysis-actions"><button class="btn subtle" id="fretMarkBtn">◉ Kalibro perde 4 · 7 · 8</button><button class="btn subtle" id="clearFretMarksBtn">Pastro shenjat</button></div>
+    <p class="roi-status" id="roiStatus">Zgjidh zonën e plektrumit për drejtimin e dorës.</p>
+    <p class="roi-status" id="fretStatus">Kalibrimi i perdeve 4, 7, 8 është opsional; shenjat duhen vendosur sipas videos.</p>
+    <div class="control-grid">
+      <label><span>Drejtimi i dorës në video</span><select id="axis"><option value="vertical">Vertikal (lart / poshtë)</option><option value="horizontal">Horizontal (majtas / djathtas)</option></select></label>
+      <label><span>Analizo deri në</span><select id="maxSeconds"><option value="30">30 sekonda</option><option value="60">1 minutë</option><option value="120" selected>2 minuta</option><option value="180">3 minuta</option><option value="300">5 minuta</option></select></label>
     </div>
+    <label class="checkline"><input id="invert" type="checkbox"/> Inverto ↓ dhe ↑ nëse kamera është e kthyer</label>
+    <label class="checkline"><input id="ghosts" type="checkbox"/> Provo të gjesh lëvizje pa tingull (pasaktësia mund të jetë e lartë)</label>
+    <label class="checkline"><input id="useHandAI" type="checkbox" checked/> Ndjek automatikisht të dy duart me MediaPipe (modeli shkarkohet nga interneti; për perdet 1–13 mund të kalibrosh shenjat 4/7/8)</label>
+    <div class="analysis-buttons"><button class="btn primary full" id="analyzeBtn">◎ Analizo notat + dorën</button><button class="btn outline" id="cancelAnalyzeBtn" disabled>Ndalo</button></div>
+    <p id="analysisProgress" class="helper" aria-live="polite">Gati për analizë. Videoja luhet në 1× gjatë analizës.</p>
+    <div class="section-separator"></div>
+    <div class="tip-card web-advice"><span class="tip-icon">i</span><p><b>Versioni Web:</b> Analiza e frekuencës dhe e lëvizjes kryhet drejtpërdrejt në shfletues gjatë luajtjes. Nëse aktivizon MediaPipe, ndiqen pozicionet e gishtave, por shtypja e saktë e perdes nuk garantohet. Shenjat 4/7/8 shërbejnë për kalibrim. Korrigjo çdo notë të dyshimtë. Analiza Python mbetet veçmas në Windows. Media nuk ngarkohet në server.</p></div>
+    <button id="convertBtn" hidden></button>
     <div class="section-separator"></div>
     <div class="section-label">Akordimi i çiftelisë</div>
     <div class="control-grid"><label><span>Teli lart · Hz</span><input id="freqUpper" type="number" min="80" max="1000" value="220" step="0.1" /></label><label><span>Teli poshtë · Hz</span><input id="freqLower" type="number" min="80" max="1000" value="293" step="0.1" /></label></div>
-    <p class="helper">14 pozicione në çdo tel (i hapur + 13 perde). Përdoren në tablaturën e importuar dhe në versionin Python.</p>
+    <p class="helper">14 pozicione në çdo tel (i hapur + 13 perde). Përdoren edhe për gjetjen e notave nga tingulli gjatë analizës Web.</p>
   </section>
   <section class="panel editor-panel">
     <div class="panel-heading"><div><span class="eyebrow">HAPI 02</span><h1>Tablatura &amp; korrigjimi</h1></div><span class="mini-label" id="eventCount">0 NGJARJE</span></div>
     <div class="editor-tools"><button class="btn outline" id="addBtn">＋ Shto notë</button><button class="btn outline" id="addGhostBtn">＋ Lëvizje pa tingull</button><button class="btn subtle" id="undoBtn" title="Zhbëj">↶</button><button class="btn subtle" id="redoBtn" title="Ribëj">↷</button></div>
     <div class="editor-tools wrap"><button class="btn subtle" id="jsonImportBtn">⇧ Import JSON</button><input type="file" id="jsonInput" accept=".json,application/json" hidden /><button class="btn subtle" id="jsonExportBtn">⇩ Eksporto JSON</button><button class="btn subtle" id="saveBtn">✓ Ruaj</button><div class="save-indicator" id="saveState">Gati</div></div>
-    <div class="timeline-head"><div><span class="section-label">Linja kohore</span><p class="helper">Kliko notën për ta ndryshuar · zvarrite majtas/djathtas · dy klikime për të shtuar.</p></div><div class="zoom-controls"><span>ZOOM</span><button id="zoomOut">−</button><strong id="zoomValue">60 px/s</strong><button id="zoomIn">＋</button></div></div>
+    <div class="timeline-head"><div><span class="section-label">Linja kohore</span><p class="helper">Kliko notën për ta ndryshuar · zvarrite majtas/djathtas · dy klikime për të shtuar.</p></div><div class="zoom-controls"><span>ZOOM</span><button id="zoomOut">−</button><strong id="zoomValue">60 px/s</strong><button id="zoomIn">＋</button><input id="zoomSlider" aria-label="Afro ose largo notat" type="range" min="15" max="260" step="5" value="60" /></div></div>
+    <div class="timeline-navigation"><button class="btn subtle" id="panLeft">◀ Majtas</button><span>Zvarrit shiritin horizontal ose përdor Shift + tërheqje mbi zonën bosh</span><button class="btn subtle" id="panRight">Djathtas ▶</button></div>
     <div class="timeline-shell">
       <div class="lane-labels"><div class="ruler-label">KOHA</div><div class="lane-label"><b>POSHTË</b><span>293 Hz</span></div><div class="lane-label"><b>LART</b><span>220 Hz</span></div><div class="lane-label"><b>LËVIZJE</b><span>pa notë</span></div></div>
       <div id="timelineScroll" class="timeline-scroll" tabindex="0"><div id="timeline" class="timeline">

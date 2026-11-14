@@ -25,3 +25,8 @@ Versioni Web mbështet:
 Lexo [udhëzuesin në shqip](UDHEZUES_SHQIP.md) dhe [informacionin e versionit Web](web/README.md).
 
 **Status:** Version provë; algoritmi i analizës nuk ka saktësi të certifikuar mbi 80%. Verifiko notat manualisht.
+
+## Versioni Web 2.1 – gjurmimi i duarve
+- **Gjej dhe ndiq duart vetë**: katrorë lëvizës për dorën e gishtave dhe dorën me plektrum (MediaPipe, shkarkim i modelit pa pagesë).
+- Zona e qafës dhe shenjat 4/7/8 mund të zhvendosen sipas lëvizjes së instrumentit duke krahasuar teksturën e videos.
+- **Kufizim:** nga pamjet e paqarta nuk mund të dalin me siguri 13 perde ose lëvizjet e heshtura. Shenjat 1–13 të nxjerra nga 4/7/8 janë përafrim; audioja dhe vlerësimi shënohen për kontroll.

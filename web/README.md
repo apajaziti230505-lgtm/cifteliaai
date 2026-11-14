@@ -1,11 +1,25 @@
-# Çiftelia Studio AI – Web
+# Çiftelia Studio AI – Web 2.1
 
-Hap `/index.html` në GitHub Pages. Ky version është **statik**, pa server Python.
+Hape versionin web (kur GitHub Pages është aktiv):
+https://apajaziti230505-lgtm.github.io/cifteliaai/
 
-Funksionet: luajtje MP3/MP4 lokalisht në shfletues, shpejtësi 1× / 0.5× / 0.25×, shtim/fshirje/zhvendosje notash, grupe, import/eksport JSON, ruajtje e përkohshme e notave në localStorage.
+## Çfarë është e re
 
-Audio/video **nuk ngarkohen në GitHub**, por hapen si `blob:` nga skedari i zgjedhur. Pas rifreskimit zgjidh përsëri të njëjtin skedar për të rikthyer notat e ruajtura. Eksporto JSON si kopje rezervë.
+- **Gjej dhe ndiq duart vetë**: përmes MediaPipe Hand Landmarker, vizaton katrorë të veçantë për dorën e gishtave dhe dorën me plektrum. Çdo kornizë videoje analizohet në shfletues. MediaPipe përdor një model që shkarkohet fillimisht nga interneti.
+- Kur ka dy duar në pamje, rolet caktohen sipas vendndodhjes përgjatë qafës së çiftelisë; mund të zgjedhësh opsionin **Qafa është në të djathtë** në rast të videos së pasqyruar. Nëse duket vetëm një dorë, etiketohet thjesht **DORA** për të mos e hamendësuar rolin.
+- **Qafa / perdet që lëvizin**: nëse zgjedh zonën e qafës dhe shënon perdet **4, 7 dhe 8**, programi përpiqet t'i zhvendosë bashkë me çiftelinë duke ndjekur teksturën e videos. Ndarja 1–13 që shfaqet nga këto tri pika është **e përafërt**, jo një zbulim i verifikuar i 13 perdeve.
+- Audioja përcakton kandidatët e notave; lëvizja e dorës me plektrum jep një vlerësim **↓/↑**. Kur rezultati është i paqartë vendoset **?** ose pika e rishikimit.
+- **Zoom, rrëshqitje majtas/djathtas, shtim/fshirje/zhvendosje të notave, 1×/0.5×/0.25× dhe eksport/import JSON**.
 
-Analiza automatike me Python, njohja e goditjeve dhe konvertimi i videos **nuk ekzekutohen në GitHub Pages**. Përdor `Start_Windows.bat` për analizë automatike.
+## Si përdoret
 
-Për aktivizimin e GitHub Pages: **Settings → Pages → Deploy from a branch → main → /(root) → Save**.
+1. Ngarko një MP4 ku të dy duart duken qartë.
+2. Kliko **Gjej dhe ndiq duart vetë**. Ktheje videon në PLAY për t'i parë katrorët në lëvizje.
+3. Për saktësi më të mirë të pozicionit të gishtave, ndalo videon te një kornizë e pastër, cakto **Zona e gishtave** dhe shëno pikat **4, 7, 8** me klikim mbi qafë. Pas kësaj katrorët dhe pikat synojnë të ndjekin çiftelinë në lëvizje.
+4. Kliko **Analizo notat + dorën**, dhe pas përfundimit kontrollo/cilëso rezultatet përpara eksportit.
+
+## Kufizime të rëndësishme
+
+Analiza është **heuristike**, jo model i trajnuar posaçërisht për çifteli, dhe nuk ka saktësi të provuar 80%. MediaPipe zbulon duart, por nuk provon në mënyrë të sigurt cilën perde e shtyp gishti. Ndjekja e qafës me teksturë funksionon për lëvizje të moderuara dhe mund të humbasë objektin nga turbullimi, mbulimi i gishtave, ndryshimet e këndit ose ndriçimit. Për më shumë saktësi duhet kalibrim, video cilësore dhe kontroll i notave.
+
+Skedarët audio/video **nuk ngarkohen** në server nga kjo faqe. Vetëm modeli MediaPipe dhe bibliotekat e tij shkarkohen nga CDN në përdorimin e parë. GitHub Pages nuk ekzekuton server Python.
