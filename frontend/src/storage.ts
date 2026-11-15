@@ -1,0 +1,9 @@
+import type {Profile,Project} from './model';
+export type SavedSong={id:string;project:Project;audio?:Blob;updated:number};
+function open():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{const r=indexedDB.open('ciftelia-transcriber-v3',1);r.onupgradeneeded=()=>r.result.createObjectStore('items');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+export async function get<T>(key:string):Promise<T|undefined>{const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction('items'),r=tx.objectStore('items').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);tx.oncomplete=()=>db.close();});}
+export async function put(key:string,value:unknown){const db=await open();return new Promise<void>((resolve,reject)=>{const tx=db.transaction('items','readwrite');tx.objectStore('items').put(value,key);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};});}
+export async function songs():Promise<SavedSong[]>{const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction('items'),r=tx.objectStore('items').getAll();r.onsuccess=()=>resolve(r.result.filter((x:any)=>x?.project?.schema==='ciftelia-transcription-v3').sort((a:SavedSong,b:SavedSong)=>b.updated-a.updated));r.onerror=()=>reject(r.error);tx.oncomplete=()=>db.close();});}
+export async function saveSong(project:Project,audio?:Blob){await put('song:'+project.id,{id:project.id,project,audio,updated:Date.now()});await put('last',project.id);}
+export async function removeSong(id:string){const db=await open();return new Promise<void>((resolve,reject)=>{const tx=db.transaction('items','readwrite');tx.objectStore('items').delete('song:'+id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);});}
+export async function saveProfile(profile:Profile){await put('profile',profile);}

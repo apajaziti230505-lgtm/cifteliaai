@@ -1,0 +1,2 @@
+import {analyzePCM,calibratePCM} from './dsp';
+self.onmessage=(message:MessageEvent)=>{const data=message.data;try{const y=new Float32Array(data.pcm);if(data.type==='calibrate'){self.postMessage({type:'calibrated',profile:calibratePCM(y,data.sr,data.profile,data.string,data.fret,data.strength,data.target)});}else{const result=analyzePCM(y,data.sr,data.profile,(fraction,status)=>self.postMessage({type:'progress',fraction,status}));self.postMessage({type:'result',result});}}catch(e){self.postMessage({type:'error',error:e instanceof Error?e.message:String(e)});}};

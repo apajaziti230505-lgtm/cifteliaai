@@ -29,7 +29,7 @@ if errorlevel 1 (
     exit /b 1
 )
 :InstallPackages
-if exist ".venv\READY.txt" goto Launch
+if exist ".venv\READY_V3.txt" goto Launch
 echo Instalimi i paketave falas (kerkon internet vetem heren e pare)...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt
@@ -38,13 +38,13 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo Ready>".venv\READY.txt"
+echo Ready>".venv\READY_V3.txt"
 :Launch
 echo.
 echo Aplikacioni hapet ne shfletues ne http://127.0.0.1:8765
 echo Mbaje kete dritare hapur. Ctrl+C per ta mbyllur.
 echo.
-".venv\Scripts\python.exe" server.py
+".venv\Scripts\python.exe" -m transcriber.api
 if errorlevel 1 (
     echo Programi u mbyll me gabim.
     pause

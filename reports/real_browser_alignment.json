@@ -1,0 +1,117 @@
+{
+  "annotations_verified": false,
+  "recording": "Shtat shaljan kane ra në Shtoj-0.mp3",
+  "audio_sha256": "3e5f6e630f41f7d643f66de78539ea242b1525943b55ff30a6ddb69fefb7d6cb",
+  "duration": 80.13700680272109,
+  "reference": "Prior user-supplied shtat.json; 400 legacy rows. Open lower note 15 maps to v3 fret 14, upper uses string 2 and note 14; withF is an imported annotation only. Per-note timing and string strike labels have NOT been independently verified against this MP3. Scores are a provisional alignment audit, not validated transcription accuracy.",
+  "reference_notes": 797,
+  "prediction_notes": 179,
+  "metrics": {
+    "notes": {
+      "tp": 16,
+      "fp": 163,
+      "fn": 781,
+      "precision": 0.0893854748603352,
+      "recall": 0.020075282308657464,
+      "f1": 0.03278688524590164
+    },
+    "onsets": {
+      "tp": 87,
+      "fp": 92,
+      "fn": 313,
+      "precision": 0.4860335195530726,
+      "recall": 0.2175,
+      "f1": 0.3005181347150259
+    },
+    "time_tolerance_ms": 50.0,
+    "timing_ms": {
+      "matched": 87,
+      "mean_absolute": 25.901946985690834,
+      "median_absolute": 25.71428571428669,
+      "p95_absolute": 47.564625850340654
+    },
+    "lower": {
+      "tp": 16,
+      "fp": 163,
+      "fn": 381,
+      "precision": 0.0893854748603352,
+      "recall": 0.04030226700251889,
+      "f1": 0.05555555555555555,
+      "fret_accuracy_on_time_matched": 0.1839080459770115
+    },
+    "upper": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 400,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0,
+      "fret_accuracy_on_time_matched": null
+    },
+    "upper_220_reattacks": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 377,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "paired_strums": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 397,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "confidence": {
+      "ece": 0.43806712237477224,
+      "brier": 0.27195921741938,
+      "bins": [
+        {
+          "lower": 0.4,
+          "count": 25,
+          "mean_confidence": 0.46715032220205793,
+          "empirical_accuracy": 0.0
+        },
+        {
+          "lower": 0.5,
+          "count": 154,
+          "mean_confidence": 0.5372419275976155,
+          "empirical_accuracy": 0.1038961038961039
+        }
+      ],
+      "population": "predicted_notes_only; false negatives counted in recall"
+    }
+  },
+  "analysis": {
+    "version": "3.0.0-browser-dsp",
+    "engine": "browser-dsp-harmonic-residual",
+    "onset_candidates": 476,
+    "recognized_events": 179,
+    "confidence_calibrated": false,
+    "processing_seconds": 2.089574308,
+    "cqt_used": false,
+    "ml_model": null,
+    "real_world_accuracy": null,
+    "onset_hop_samples": 128,
+    "tuning_diagnostics": {
+      "reference_upper_hz": 220,
+      "candidate_persistent_family_hz": 246.5,
+      "possible_mismatch": true,
+      "method": "median_harmonic_family_scan; inference_only_not_calibration",
+      "score": 1.079411528431755
+    },
+    "limitations": [
+      "Browser DSP baseline; use Python for CQT.",
+      "Uncalibrated harmonic collisions require review.",
+      "Rare upper frets need calibration."
+    ]
+  },
+  "unresolved_count": 297,
+  "missing_categories": [
+    "slow",
+    "fast",
+    "difficult"
+  ]
+}

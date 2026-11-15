@@ -1,0 +1,122 @@
+{
+  "annotations_verified": false,
+  "recording": "Shtat shaljan kane ra në Shtoj-0.mp3",
+  "audio_sha256": "3e5f6e630f41f7d643f66de78539ea242b1525943b55ff30a6ddb69fefb7d6cb",
+  "duration": 80.13700680272109,
+  "reference": "Prior user-supplied shtat.json; 400 legacy rows. Open lower note 15 maps to v3 fret 14, upper uses string 2 and note 14; withF is an imported annotation only. Per-note timing and string strike labels have NOT been independently verified against this MP3. Scores are a provisional alignment audit, not validated transcription accuracy.",
+  "category": "unspecified",
+  "missing_categories": [
+    "slow",
+    "fast",
+    "difficult"
+  ],
+  "reference_notes": 797,
+  "prediction_notes": 156,
+  "metrics": {
+    "notes": {
+      "tp": 17,
+      "fp": 139,
+      "fn": 780,
+      "precision": 0.10897435897435898,
+      "recall": 0.02132998745294856,
+      "f1": 0.035676810073452254
+    },
+    "onsets": {
+      "tp": 81,
+      "fp": 75,
+      "fn": 319,
+      "precision": 0.5192307692307693,
+      "recall": 0.2025,
+      "f1": 0.29136690647482016
+    },
+    "time_tolerance_ms": 50.0,
+    "timing_ms": {
+      "matched": 81,
+      "mean_absolute": 27.531144144901045,
+      "median_absolute": 29.659863945582288,
+      "p95_absolute": 49.115646258503176
+    },
+    "lower": {
+      "tp": 17,
+      "fp": 139,
+      "fn": 380,
+      "precision": 0.10897435897435898,
+      "recall": 0.042821158690176324,
+      "f1": 0.06148282097649186,
+      "fret_accuracy_on_time_matched": 0.19753086419753085
+    },
+    "upper": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 400,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0,
+      "fret_accuracy_on_time_matched": null
+    },
+    "upper_220_reattacks": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 377,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "paired_strums": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 397,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "confidence": {
+      "ece": 0.41752179487179486,
+      "brier": 0.2693407682051283,
+      "bins": [
+        {
+          "lower": 0.4,
+          "count": 21,
+          "mean_confidence": 0.45780952380952383,
+          "empirical_accuracy": 0.0
+        },
+        {
+          "lower": 0.5,
+          "count": 135,
+          "mean_confidence": 0.5371807407407406,
+          "empirical_accuracy": 0.1259259259259259
+        }
+      ],
+      "population": "predicted_notes_only; false negatives counted in recall"
+    }
+  },
+  "analysis": {
+    "version": "3.0.0-dsp",
+    "engine": "dsp-harmonic-residual",
+    "ml_model": null,
+    "profile_id": "reference-220-293",
+    "cqt_used": true,
+    "onset_hop_samples": 128,
+    "onset_hop_ms": 5.804988662131519,
+    "onset_candidates": 429,
+    "recognized_events": 156,
+    "processing_seconds": 2.956,
+    "confidence_calibrated": false,
+    "real_world_accuracy": null,
+    "upper_fretted_calibrated": false,
+    "tuning_diagnostics": {
+      "reference_upper_hz": 220.0,
+      "candidate_persistent_family_hz": 247.5,
+      "possible_mismatch": true,
+      "method": "median_harmonic_family_scan; inference_only_not_calibration",
+      "score": 1.0855185165033392
+    },
+    "limitations": [
+      "Uncalibrated harmonic collisions require review.",
+      "Rare upper frets need measured calibration.",
+      "Confidence is heuristic, not a measured probability.",
+      "Release time is an acoustic estimate."
+    ]
+  },
+  "unresolved_count": 273
+}

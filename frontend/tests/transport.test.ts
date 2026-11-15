@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {pcmWav} from '../src/transport';
+test('playback PCM has exactly the analysis sample count and sample rate',async()=>{const samples=new Float32Array(44101);const blob=pcmWav(samples,22050),v=new DataView(await blob.arrayBuffer());assert.equal(v.getUint32(24,true),22050);assert.equal(v.getUint32(40,true)/2,44101);assert.equal((blob.size-44)/2/22050,samples.length/22050);});

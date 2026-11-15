@@ -21,7 +21,7 @@ from scipy.signal import find_peaks, stft
 
 # Measured notes from user's lower string. Configurable via interface.
 LOWER_DEFAULT = [293, 329, 358, 389, 440, 477, 521, 587, 660, 719, 784, 880, 960, 1050]
-UPPER_DEFAULT = [round(x * 220 / 293, 2) for x in LOWER_DEFAULT]
+UPPER_DEFAULT = [220] + [None] * 13  # unmeasured upper frets are intentionally absent
 SR = 16000
 MAX_ANALYSIS_SECONDS = 600
 
@@ -150,61 +150,35 @@ def _max_near(spec, freq, f, tol_hz=3):
     return float(np.max(spec[max(0,center-delta):min(len(spec),center+delta+1)]))
 
 
+def _transcriber_profile(freqs):
+    from transcriber.schema import default_profile
+    p=default_profile()
+    if freqs:
+        for tone in p['tones']:
+            key='lart' if tone['string']=='upper' else 'poshte'
+            index=0 if tone['fret']==14 else tone['fret']
+            values=freqs.get(key,[])
+            if index<len(values) and values[index] and float(values[index])>100:
+                tone['frequency']=float(values[index])
+    return p
+
+
 def identify_tones(audio, sr, time_s, freqs):
-    freq, spec = _spectral_magnitude(audio, sr, time_s)
-    if freq is None:
-        return []
-    # Avoid treating harmonics of 220Hz as independent notes unless a distinct fundamental is present.
-    floor = max(0.00001,float(np.median(spec[(freq>150)&(freq<1200)])))
-    candidates = []
-    for string in ('poshte','lart'):
-        for fret, target in enumerate(freqs[string]):
-            target = float(target)
-            amps = [_max_near(spec,freq,target*h,3.5+1.0*h) for h in (1,2,3) if target*h<sr/2]
-            if not amps: continue
-            fundamental = amps[0]
-            # Favor actual fundamental; help detect notes when harmonics are strong.
-            score = fundamental + (amps[1]*.22 if len(amps)>1 else 0) + (amps[2]*.11 if len(amps)>2 else 0)
-            candidates.append((score, fundamental, string, fret, target))
-    if not candidates:
-        return []
-    # Choose best on each string; suppress weak and overtone-only candidates.
-    max_score = max(x[0] for x in candidates)
-    chosen = []
-    for string in ('poshte','lart'):
-        best = max((x for x in candidates if x[2]==string), key=lambda x:x[0])
-        score, fundamental, _, fret, target = best
-        confidence = min(0.99, max(0,score/(max_score+1e-9) * (fundamental/(fundamental+floor*4))))
-        if score < max_score * (0.42 if string=='lart' else 0.33):
-            continue
-        if fundamental < floor*2.2:
-            continue
-        chosen.append({'string':string,'fret':fret,'freq':round(target,2),'confidence':round(float(confidence),2)})
-    # If candidate frequencies are nearly equal, suppress the weaker double-count.
-    if len(chosen)==2 and abs(chosen[0]['freq']-chosen[1]['freq']) < 8:
-        chosen = [max(chosen,key=lambda item:item['confidence'])]
-    return chosen
+    from transcriber.engine import fit_event
+    p=_transcriber_profile(freqs)
+    sample=round(time_s*sr)
+    fitted,_=fit_event(audio,sr,sample,min(len(audio),sample+round(sr*.15)),p['tones'])
+    return [{'string':'lart' if r['tone']['string']=='upper' else 'poshte',
+             'fret':0 if r['tone']['fret']==14 else r['tone']['fret'],
+             'freq':r['tone']['frequency'],'confidence':r['confidence']} for r in fitted]
 
 
 def detect_audio_events(audio, sr=SR, freqs=None):
-    freqs = freqs or {'lart':UPPER_DEFAULT,'poshte':LOWER_DEFAULT}
-    onsets, wave = detect_onsets(audio, sr)
-    result = []
-    for i, t in enumerate(onsets):
-        tones = identify_tones(audio,sr,t,freqs)
-        if not tones:
-            result.append({'id':uuid.uuid4().hex[:12],'time':t,'duration':0.2,'string':'poshte','fret':0,
-                           'stroke':'unknown','confidence':0.0,'source':'auto','review':True})
-            continue
-        next_gap = (onsets[i+1]-t) if i+1<len(onsets) else 0.35
-        dur = round(min(1.8,max(0.09,next_gap*0.88)),3)
-        for tone in tones:
-            result.append({'id':uuid.uuid4().hex[:12],'time':t,'duration':dur,
-                           'string':tone['string'],'fret':tone['fret'],
-                           'stroke':'unknown','confidence':tone['confidence'],
-                           'source':'auto','review':tone['confidence']<0.55})
-    result = group_events(result)
-    return result,wave
+    from transcriber.engine import analyze_pcm
+    result=analyze_pcm(audio,sr,_transcriber_profile(freqs))
+    events=[{**n,'string':'lart' if n['string']=='upper' else 'poshte',
+             'fret':0 if n['fret']==14 else n['fret'],'stroke':'unknown','source':'auto'} for n in result['notes']]
+    return events,result['waveform']
 
 
 def group_events(events, pause=0.95):

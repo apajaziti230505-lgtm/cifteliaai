@@ -1,0 +1,11 @@
+services:
+  transcriber:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ciftelia-data:/app/data
+    environment:
+      CIFTELIA_ALLOWED_ORIGINS: "http://127.0.0.1:8765,http://localhost:8765"
+volumes:
+  ciftelia-data:
